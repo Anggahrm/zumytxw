@@ -1,0 +1,4 @@
+node_modules
+databases
+sessions
+package-lock.json
