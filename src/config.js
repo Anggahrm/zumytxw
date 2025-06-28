@@ -1,7 +1,7 @@
 export default {
     // Telegram Configuration
     telegram: {
-        botToken: '7196701399:AAGfwUW1PbbVdpHB6JpIO58gsuHB6qWP5ck', // Ganti dengan token Anda
+        botToken: 'xxx', // Ganti dengan token Anda, buat di botfather
         ownerId: 6026583608 // Ganti dengan ID Telegram Anda
     },
     
