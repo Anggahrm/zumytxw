@@ -1,7 +1,12 @@
 import { Boom } from '@hapi/boom';
 import { DisconnectReason } from '@whiskeysockets/baileys';
-import chalk from 'chalk';
+import { logger } from '../lib/logger.js';
+import { Utils } from '../lib/utils.js';
 import { deleteSession, createWhatsAppBot } from '../bots/whatsappBot.js';
+import { DEFAULT_CONFIG } from '../lib/constants.js';
+
+// Track reconnection attempts per phone number
+const reconnectionAttempts = new Map();
 
 export function handleConnectionUpdate(sock, update, phoneNumber, sendPairingCode, updateStatus, whatsAppBots) {
     const { connection, lastDisconnect } = update;
@@ -12,26 +17,77 @@ export function handleConnectionUpdate(sock, update, phoneNumber, sendPairingCod
         const reason = new Boom(lastDisconnect?.error)?.output.statusCode;
         const shouldReconnect = reason !== DisconnectReason.loggedOut;
 
-        console.error(chalk.red(`Connection closed for ${phoneNumber}, reason: ${DisconnectReason[reason] || 'unknown'}`), lastDisconnect.error);
+        logger.error(`Connection closed for ${phoneNumber}`, {
+            reason: DisconnectReason[reason] || 'unknown',
+            error: lastDisconnect?.error?.message
+        });
 
         if (reason === DisconnectReason.badSession) {
-            console.log(chalk.yellow(`Bad session for ${phoneNumber}. Deleting session and restarting...`));
+            logger.warn(`Bad session for ${phoneNumber}. Deleting session...`);
             deleteSession(phoneNumber);
+            reconnectionAttempts.delete(phoneNumber); // Reset attempts on bad session
         }
         
         if (shouldReconnect) {
-            console.log(chalk.blue(`Reconnecting bot for ${phoneNumber}...`));
-            createWhatsAppBot(phoneNumber, sendPairingCode, updateStatus, whatsAppBots);
+            const attempts = reconnectionAttempts.get(phoneNumber) || 0;
+            
+            if (attempts < DEFAULT_CONFIG.MAX_RECONNECT_ATTEMPTS) {
+                reconnectionAttempts.set(phoneNumber, attempts + 1);
+                
+                // Exponential backoff delay
+                const delay = DEFAULT_CONFIG.RECONNECT_DELAY * Math.pow(2, attempts);
+                
+                logger.info(`Scheduling reconnection for ${phoneNumber} (attempt ${attempts + 1}/${DEFAULT_CONFIG.MAX_RECONNECT_ATTEMPTS}) in ${delay}ms`);
+                
+                setTimeout(async () => {
+                    try {
+                        const newBot = await createWhatsAppBot(phoneNumber, sendPairingCode, updateStatus, whatsAppBots);
+                        if (newBot) {
+                            whatsAppBots.set(phoneNumber, newBot);
+                            reconnectionAttempts.delete(phoneNumber); // Reset on successful connection
+                            logger.success(`Successfully reconnected bot for ${phoneNumber}`);
+                        }
+                    } catch (error) {
+                        logger.error(`Failed to reconnect bot for ${phoneNumber}:`, error);
+                    }
+                }, delay);
+            } else {
+                logger.error(`Max reconnection attempts reached for ${phoneNumber}. Giving up.`);
+                deleteSession(phoneNumber);
+                whatsAppBots.delete(phoneNumber);
+                reconnectionAttempts.delete(phoneNumber);
+            }
         } else {
-             console.log(chalk.red(`Not reconnecting ${phoneNumber} due to logout.`));
-             deleteSession(phoneNumber);
-             whatsAppBots.delete(phoneNumber);
+            logger.info(`Not reconnecting ${phoneNumber} due to logout.`);
+            deleteSession(phoneNumber);
+            whatsAppBots.delete(phoneNumber);
+            reconnectionAttempts.delete(phoneNumber);
         }
 
     } else if (connection === 'open') {
-        console.log(chalk.green.bold(`Bot ${phoneNumber} connected successfully!`));
-        sock.sendMessage(sock.user.id, { text: `Bot Online! Siap menerima perintah.` });
+        logger.success(`Bot ${phoneNumber} connected successfully!`);
+        reconnectionAttempts.delete(phoneNumber); // Reset attempts on successful connection
+        
+        // Send notification to self
+        try {
+            sock.sendMessage(sock.user.id, { 
+                text: `🟢 Bot Online! Siap menerima perintah.\n\nNomor: ${phoneNumber}\nWaktu: ${new Date().toLocaleString('id-ID')}`
+            });
+        } catch (error) {
+            logger.warn(`Failed to send online notification for ${phoneNumber}:`, error);
+        }
     } else if (connection === 'connecting') {
-        console.log(chalk.yellow(`Bot ${phoneNumber} is connecting...`));
+        logger.info(`Bot ${phoneNumber} is connecting...`);
     }
 }
+
+// Cleanup reconnection attempts periodically
+setInterval(() => {
+    const oneHourAgo = Date.now() - 3600000;
+    for (const [phone, attempts] of reconnectionAttempts.entries()) {
+        // If no activity for 1 hour, remove from tracking
+        if (typeof attempts === 'object' && attempts.lastAttempt < oneHourAgo) {
+            reconnectionAttempts.delete(phone);
+        }
+    }
+}, 600000); // Clean every 10 minutes

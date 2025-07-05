@@ -1,39 +1,59 @@
-import chalk from 'chalk';
+import { logger } from '../lib/logger.js';
+import { rateLimiter, ErrorHandler, Validator } from '../lib/utils.js';
 import { getWhatsAppDatabase } from '../lib/database.js';
 import { getCommand } from './commandHandler.js';
 
+/**
+ * Handle incoming WhatsApp messages
+ * @param {Object} m - Serialized message object
+ * @param {Object} sock - WhatsApp socket instance
+ */
 export async function handleMessages(m, sock) {
     try {
-        if (!m.prefix) return;
+        // Skip if no prefix or invalid message
+        if (!m.prefix || m.isBot || !m.command) return;
 
-        if (m.isBot || !m.command) return;
+        // Rate limiting check
+        if (!rateLimiter.isWithinLimit(m.sender, 'user')) {
+            return m.reply('⚠️ Anda mengirim perintah terlalu cepat. Tunggu sebentar sebelum mencoba lagi.');
+        }
 
         const db = getWhatsAppDatabase(sock.user.id.split(':')[0]);
         const cmd = getCommand(m.command.toLowerCase());
 
         if (cmd) {
+            // Validate command permissions
             if (cmd.groupOnly && !m.isGroup) {
-                return m.reply('Perintah ini hanya bisa digunakan di dalam grup!');
+                return m.reply('❌ Perintah ini hanya bisa digunakan di dalam grup!');
             }
             if (cmd.adminOnly && m.isGroup && !m.isAdmin) {
-                return m.reply('Perintah ini hanya untuk admin grup!');
+                return m.reply('❌ Perintah ini hanya untuk admin grup!');
             }
 
-            await cmd.execute({
+            // Validate arguments if command has validation
+            if (cmd.validateArgs && !cmd.validateArgs(m.args)) {
+                return m.reply(`❌ Format perintah salah. Gunakan: ${m.prefix}${cmd.name} ${cmd.usage || ''}`);
+            }
+
+            // Execute command with error handling
+            await ErrorHandler.asyncWrapper(cmd.execute, `command:${cmd.name}`)({
                 m,
                 sock,
                 db,
-                text: m.text,
-                args: m.args,
+                text: Validator.sanitizeText(m.text),
+                args: m.args.map(arg => Validator.sanitizeText(arg)),
                 usedPrefix: m.prefix, 
                 command: m.command
             });
-            console.log(chalk.green(`[CMD]`), chalk.yellow(m.command), `from`, chalk.cyan(m.sender));
+
+            logger.info(`Command executed: ${m.command} by ${m.sender}`);
         } else {
+            // Handle store list items
             const chat = db.initChat(m.chat);
             const listStoreItem = chat.listStr[m.body.toUpperCase()];
+            
             if (listStoreItem) {
-                 if (listStoreItem.image) {
+                if (listStoreItem.image) {
                     await sock.sendMessage(m.chat, {
                         image: { url: listStoreItem.image },
                         caption: listStoreItem.text || '',
@@ -45,11 +65,17 @@ export async function handleMessages(m, sock) {
                         mentions: m.mentions
                     });
                 }
+                logger.debug(`Store item accessed: ${m.body} by ${m.sender}`);
             }
         }
 
     } catch (error) {
-        console.error(chalk.red.bold('Error memproses pesan:'), error);
-        await m.reply('Maaf, terjadi kesalahan saat memproses perintah Anda.');
+        const userError = ErrorHandler.formatUserError(error, 'message processing');
+        logger.error('Error processing message:', { 
+            error: error.message, 
+            sender: m.sender, 
+            command: m.command 
+        });
+        await m.reply(userError);
     }
 }

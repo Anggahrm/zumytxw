@@ -1,30 +1,47 @@
+import dotenv from 'dotenv';
+
+// Load environment variables
+dotenv.config();
+
+/**
+ * Application configuration
+ * Uses environment variables with fallback defaults
+ */
 export default {
     // Telegram Configuration
     telegram: {
-        botToken: 'xxx', // Ganti dengan token Anda, buat di botfather
-        ownerId: 6026583608 // Ganti dengan ID Telegram Anda
+        botToken: process.env.TELEGRAM_BOT_TOKEN || '',
+        ownerId: parseInt(process.env.TELEGRAM_OWNER_ID) || 0
     },
     
     // WhatsApp Configuration
     whatsapp: {
-        ownerNumbers: ['6285123865643'], // Nomor owner dalam format internasional
+        ownerNumbers: process.env.WHATSAPP_OWNER_NUMBERS?.split(',') || [],
         botInfo: {
-            name: 'ZumyNext Multi-Device',
-            author: 'anggahrm',
-            website: 'https://zumynext.tech',
-            thumbnail: 'https://files.catbox.moe/p5q4ro.jpg'
+            name: process.env.BOT_NAME || 'ZumyNext Multi-Device',
+            author: process.env.BOT_AUTHOR || 'anggahrm',
+            website: process.env.BOT_WEBSITE || 'https://zumynext.tech',
+            thumbnail: process.env.BOT_THUMBNAIL || 'https://files.catbox.moe/p5q4ro.jpg'
         }
     },
 
+    // API Keys
     apiKeys: {
-        betabotz: '' //buat sendiri di betabotz api
+        betabotz: process.env.BETABOTZ_API_KEY || ''
     },
 
+    // Paths
     database: {
-        path: './databases'
+        path: process.env.DATABASE_PATH || './databases'
     },
     
     session: {
-        path: './sessions'
+        path: process.env.SESSION_PATH || './sessions'
+    },
+
+    // Application settings
+    app: {
+        environment: process.env.NODE_ENV || 'development',
+        logLevel: process.env.LOG_LEVEL || 'info'
     }
 };

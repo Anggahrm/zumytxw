@@ -6,7 +6,12 @@
   "type": "module",
   "scripts": {
     "start": "node src/index.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "NODE_ENV=development LOG_LEVEL=debug node src/index.js",
+    "prod": "NODE_ENV=production node src/index.js",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "validate": "node -e \"import('./src/lib/startup.js').then(m => m.checkConfiguration())\"",
+    "clean": "rm -rf databases/* sessions/* *.log",
+    "setup": "cp .env.example .env && echo 'Please edit .env file with your configuration'"
   },
   "keywords": [
     "whatsapp-bot",
@@ -23,6 +28,7 @@
     "axios": "^1.7.9",
     "chalk": "^5.3.0",
     "cheerio": "latest",
+    "dotenv": "^16.4.5",
     "fluent-ffmpeg": "^2.1.2",
     "form-data": "^4.0.0",
     "file-type": "^18.7.0",

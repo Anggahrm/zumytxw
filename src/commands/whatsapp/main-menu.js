@@ -40,7 +40,7 @@ handler.execute = async ({ m, usedPrefix }) => {
     }
     
     menuText += '│\n';
-    menuText += `╰─「 *${ZumyNext - MultiDevice}* 」`;
+    menuText += `╰─「 *ZumyNext - MultiDevice* 」`;
 
     await m.reply(menuText);
 };

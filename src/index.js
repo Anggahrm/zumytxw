@@ -1,34 +1,66 @@
 import { startTelegramBot } from './bots/telegramBot.js';
 import { loadStoredSessions } from './bots/whatsappBot.js';
 import { loadCommands } from './handlers/commandHandler.js';
-import chalk from 'chalk';
+import { logger } from './lib/logger.js';
+import { checkConfiguration, displayStartupInfo, setupShutdownHandlers } from './lib/startup.js';
 import fs from 'fs';
 import config from './config.js';
 
+/**
+ * Ensure directory exists, create if it doesn't
+ * @param {string} dirPath - Directory path to ensure
+ */
 const ensureDirectoryExistence = (dirPath) => {
     if (!fs.existsSync(dirPath)) {
         fs.mkdirSync(dirPath, { recursive: true });
-        console.log(chalk.green(`Created directory: ${dirPath}`));
+        logger.info(`Created directory: ${dirPath}`);
     }
 };
 
+/**
+ * Main application entry point
+ */
 async function main() {
-    console.log(chalk.blue.bold('--- Telegram WhatsApp Bot Manager ---'));
-
-    ensureDirectoryExistence(config.session.path);
-    ensureDirectoryExistence(config.database.path);
-
-    await loadCommands();
-    
-    const whatsAppBots = await loadStoredSessions();
-
-    startTelegramBot(whatsAppBots);
-    
-    console.log(chalk.green.bold('\nApplication started successfully!'));
-    console.log(chalk.yellow('Telegram Bot is running and managing WhatsApp bots.'));
+    try {
+        // Display startup information
+        displayStartupInfo();
+        
+        // Validate configuration
+        checkConfiguration();
+        
+        // Setup graceful shutdown handlers
+        setupShutdownHandlers();
+        
+        // Ensure required directories exist
+        logger.info('Setting up directories...');
+        ensureDirectoryExistence(config.session.path);
+        ensureDirectoryExistence(config.database.path);
+        
+        // Load commands
+        logger.info('Loading commands...');
+        await loadCommands();
+        
+        // Load stored WhatsApp sessions
+        logger.info('Loading stored WhatsApp sessions...');
+        const whatsAppBots = await loadStoredSessions();
+        
+        // Start Telegram bot
+        logger.info('Starting Telegram bot...');
+        startTelegramBot(whatsAppBots);
+        
+        logger.success('✅ Application started successfully!');
+        logger.info('Telegram Bot is running and managing WhatsApp bots.');
+        
+        // Optional: Display additional runtime information
+        if (config.app.environment === 'development') {
+            logger.debug('Development mode enabled - additional logging active');
+        }
+        
+    } catch (error) {
+        logger.error('Failed to start application:', error);
+        process.exit(1);
+    }
 }
 
-main().catch(err => {
-    console.error(chalk.red.bold('An unexpected error occurred:'), err);
-    process.exit(1);
-});
+// Start the application
+main();

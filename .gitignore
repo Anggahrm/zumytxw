@@ -2,3 +2,8 @@ node_modules
 databases
 sessions
 package-lock.json
+.env
+*.log
+tmp
+.DS_Store
+.vscode/settings.json

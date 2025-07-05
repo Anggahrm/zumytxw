@@ -66,12 +66,19 @@ export async function createWhatsAppBot(phoneNumber, sendPairingCode, updateStat
         });
 
         sock.ev.on('messages.upsert', async (chatUpdate) => {
-            if (!chatUpdate.messages) return;
-            const msg = chatUpdate.messages[0];
-            if (!msg.message) return;
-            
-            const m = await serialize(msg, sock, store);
-            if (m) await handleMessages(m, sock);
+            try {
+                if (!chatUpdate.messages) return;
+                const msg = chatUpdate.messages[0];
+                if (!msg.message) return;
+                
+                const m = await serialize(msg, sock, store);
+                if (m) {
+                    await handleMessages(m, sock);
+                }
+            } catch (error) {
+                console.error(chalk.red('Error processing message:'), error);
+                // Don't crash the bot, just log the error
+            }
         });
 
         return sock;
