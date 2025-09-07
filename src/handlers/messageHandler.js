@@ -1,5 +1,5 @@
 import { logger } from '../lib/logger.js';
-import { rateLimiter, ErrorHandler, Validator } from '../lib/utils.js';
+import { rateLimiter, ErrorHandler, Validator, SecurityUtils, healthMonitor } from '../lib/utils.js';
 import { getWhatsAppDatabase } from '../lib/database.js';
 import { getCommand } from './commandHandler.js';
 
@@ -10,8 +10,30 @@ import { getCommand } from './commandHandler.js';
  */
 export async function handleMessages(m, sock) {
     try {
+        // Record request for health monitoring
+        healthMonitor.recordRequest();
+
         // Skip if no prefix or invalid message
         if (!m.prefix || m.isBot || !m.command) return;
+
+        // Enhanced security validation
+        const securityCheck = SecurityUtils.analyzeSecurityThreats(m.text || '');
+        if (securityCheck.hasThreats && securityCheck.riskLevel === 'high') {
+            logger.warn(`High-risk security threat detected from ${m.sender}:`, securityCheck.threats);
+            return m.reply('⚠️ Pesan Anda mengandung konten yang berpotensi berbahaya.');
+        }
+
+        // Validate command format
+        const commandValidation = SecurityUtils.validateCommand(m.command);
+        if (!commandValidation.isValid) {
+            return m.reply(`❌ Format perintah tidak valid: ${commandValidation.reason}`);
+        }
+
+        // Enhanced message content validation
+        const contentValidation = Validator.validateMessageContent(m.text || '');
+        if (!contentValidation.isValid) {
+            return m.reply(`❌ ${contentValidation.reason}`);
+        }
 
         // Rate limiting check
         if (!rateLimiter.isWithinLimit(m.sender, 'user')) {
@@ -70,12 +92,22 @@ export async function handleMessages(m, sock) {
         }
 
     } catch (error) {
+        // Record error for health monitoring
+        healthMonitor.recordError(error);
+        
         const userError = ErrorHandler.formatUserError(error, 'message processing');
         logger.error('Error processing message:', { 
             error: error.message, 
             sender: m.sender, 
-            command: m.command 
+            command: m.command,
+            stack: error.stack
         });
-        await m.reply(userError);
+        
+        // Try to send error message, but don't fail if it doesn't work
+        try {
+            await m.reply(userError);
+        } catch (replyError) {
+            logger.error('Failed to send error reply:', replyError.message);
+        }
     }
 }
