@@ -77,6 +77,70 @@ export class Validator {
         if (!Array.isArray(args)) return false;
         return args.length >= minLength && args.length <= maxLength;
     }
+
+    /**
+     * Validate user ID format (Telegram user ID)
+     * @param {number|string} userId - User ID to validate
+     * @returns {boolean} True if valid
+     */
+    static isValidUserId(userId) {
+        const id = parseInt(userId);
+        return !isNaN(id) && id > 0 && id < Number.MAX_SAFE_INTEGER;
+    }
+
+    /**
+     * Validate image URL
+     * @param {string} url - Image URL to validate
+     * @returns {boolean} True if valid image URL
+     */
+    static isValidImageUrl(url) {
+        if (!this.isValidUrl(url)) return false;
+        return /\.(jpg|jpeg|png|gif|webp)(\?|$)/i.test(url);
+    }
+
+    /**
+     * Validate message content for harmful patterns
+     * @param {string} content - Message content to validate
+     * @returns {Object} Validation result with isValid and reason
+     */
+    static validateMessageContent(content) {
+        if (typeof content !== 'string') {
+            return { isValid: false, reason: 'Content must be a string' };
+        }
+
+        // Check for potential spam patterns
+        const spamPatterns = [
+            /(.)\1{10,}/gi, // Repeated characters (more than 10)
+            /[\u200B-\u200D\uFEFF]/g, // Zero-width characters
+            /(http|https):\/\/[^\s]+/gi // Multiple URLs
+        ];
+
+        for (const pattern of spamPatterns) {
+            if (pattern.test(content)) {
+                return { isValid: false, reason: 'Content contains suspicious patterns' };
+            }
+        }
+
+        // Check length limits
+        if (content.length > 4000) {
+            return { isValid: false, reason: 'Content too long' };
+        }
+
+        return { isValid: true, reason: null };
+    }
+
+    /**
+     * Validate and sanitize filename
+     * @param {string} filename - Filename to validate
+     * @returns {string} Sanitized filename
+     */
+    static sanitizeFilename(filename) {
+        if (typeof filename !== 'string') return 'file';
+        return filename
+            .replace(/[^a-zA-Z0-9._-]/g, '_')
+            .replace(/_{2,}/g, '_')
+            .substring(0, 100);
+    }
 }
 
 /**
@@ -252,4 +316,192 @@ export class Utils {
         
         throw lastError;
     }
+
+    /**
+     * Debounce function to limit execution frequency
+     * @param {Function} func - Function to debounce
+     * @param {number} delay - Delay in milliseconds
+     * @returns {Function} Debounced function
+     */
+    static debounce(func, delay) {
+        let timeoutId;
+        return (...args) => {
+            clearTimeout(timeoutId);
+            timeoutId = setTimeout(() => func.apply(this, args), delay);
+        };
+    }
+
+    /**
+     * Deep clone an object
+     * @param {any} obj - Object to clone
+     * @returns {any} Cloned object
+     */
+    static deepClone(obj) {
+        if (obj === null || typeof obj !== 'object') return obj;
+        if (obj instanceof Date) return new Date(obj.getTime());
+        if (obj instanceof Array) return obj.map(item => this.deepClone(item));
+        if (typeof obj === 'object') {
+            const copy = {};
+            Object.keys(obj).forEach(key => {
+                copy[key] = this.deepClone(obj[key]);
+            });
+            return copy;
+        }
+    }
 }
+
+/**
+ * Security utilities
+ */
+export class SecurityUtils {
+    /**
+     * Generate a secure random string
+     * @param {number} length - Length of the string
+     * @returns {string} Random string
+     */
+    static generateSecureId(length = 32) {
+        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+        let result = '';
+        for (let i = 0; i < length; i++) {
+            result += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        return result;
+    }
+
+    /**
+     * Validate and sanitize command input
+     * @param {string} command - Command to validate
+     * @returns {Object} Validation result
+     */
+    static validateCommand(command) {
+        if (typeof command !== 'string') {
+            return { isValid: false, reason: 'Command must be a string' };
+        }
+
+        // Check command length
+        if (command.length > 50) {
+            return { isValid: false, reason: 'Command too long' };
+        }
+
+        // Check for valid command format (alphanumeric and common symbols)
+        if (!/^[a-zA-Z0-9._-]+$/.test(command)) {
+            return { isValid: false, reason: 'Command contains invalid characters' };
+        }
+
+        return { isValid: true, sanitized: command.toLowerCase() };
+    }
+
+    /**
+     * Check if user ID is in allowed list
+     * @param {number} userId - User ID to check
+     * @param {Array} allowedUsers - Array of allowed user IDs
+     * @returns {boolean} True if allowed
+     */
+    static isUserAllowed(userId, allowedUsers = []) {
+        return allowedUsers.includes(userId);
+    }
+
+    /**
+     * Detect potential security threats in content
+     * @param {string} content - Content to analyze
+     * @returns {Object} Threat analysis result
+     */
+    static analyzeSecurityThreats(content) {
+        const threats = [];
+        
+        // Check for potential script injection
+        if (/<script|javascript:|data:|vbscript:/i.test(content)) {
+            threats.push('Potential script injection detected');
+        }
+
+        // Check for SQL injection patterns
+        if (/(union|select|insert|update|delete|drop|exec|script)/i.test(content)) {
+            threats.push('Potential SQL injection pattern detected');
+        }
+
+        // Check for path traversal
+        if (/\.\.\/|\.\.\\|%2e%2e/i.test(content)) {
+            threats.push('Potential path traversal detected');
+        }
+
+        // Check for command injection
+        if (/[;&|`$()]/g.test(content)) {
+            threats.push('Potential command injection detected');
+        }
+
+        return {
+            hasThreats: threats.length > 0,
+            threats,
+            riskLevel: threats.length === 0 ? 'low' : threats.length < 3 ? 'medium' : 'high'
+        };
+    }
+}
+
+/**
+ * Health monitoring utilities
+ */
+export class HealthMonitor {
+    constructor() {
+        this.metrics = {
+            startTime: Date.now(),
+            requestCount: 0,
+            errorCount: 0,
+            lastError: null,
+            memoryUsage: process.memoryUsage(),
+            uptime: 0
+        };
+        
+        // Update metrics every minute
+        setInterval(() => this.updateMetrics(), 60000);
+    }
+
+    /**
+     * Update system metrics
+     */
+    updateMetrics() {
+        this.metrics.uptime = Date.now() - this.metrics.startTime;
+        this.metrics.memoryUsage = process.memoryUsage();
+    }
+
+    /**
+     * Record a request
+     */
+    recordRequest() {
+        this.metrics.requestCount++;
+    }
+
+    /**
+     * Record an error
+     * @param {Error} error - Error to record
+     */
+    recordError(error) {
+        this.metrics.errorCount++;
+        this.metrics.lastError = {
+            message: error.message,
+            timestamp: Date.now()
+        };
+    }
+
+    /**
+     * Get health status
+     * @returns {Object} Health status
+     */
+    getStatus() {
+        const memoryUsageMB = Math.round(this.metrics.memoryUsage.used / 1024 / 1024);
+        const errorRate = this.metrics.requestCount > 0 ? 
+            (this.metrics.errorCount / this.metrics.requestCount * 100).toFixed(2) : 0;
+
+        return {
+            status: errorRate < 5 ? 'healthy' : errorRate < 15 ? 'warning' : 'critical',
+            uptime: Utils.formatUptime(this.metrics.uptime),
+            requestCount: this.metrics.requestCount,
+            errorCount: this.metrics.errorCount,
+            errorRate: `${errorRate}%`,
+            memoryUsage: `${memoryUsageMB} MB`,
+            lastError: this.metrics.lastError
+        };
+    }
+}
+
+// Global health monitor instance
+export const healthMonitor = new HealthMonitor();

@@ -1,7 +1,7 @@
 import { Boom } from '@hapi/boom';
 import { DisconnectReason } from '@whiskeysockets/baileys';
 import { logger } from '../lib/logger.js';
-import { Utils } from '../lib/utils.js';
+import { Utils, healthMonitor } from '../lib/utils.js';
 import { deleteSession, createWhatsAppBot } from '../bots/whatsappBot.js';
 import { DEFAULT_CONFIG } from '../lib/constants.js';
 
@@ -41,14 +41,31 @@ export function handleConnectionUpdate(sock, update, phoneNumber, sendPairingCod
                 
                 setTimeout(async () => {
                     try {
-                        const newBot = await createWhatsAppBot(phoneNumber, sendPairingCode, updateStatus, whatsAppBots);
+                        logger.info(`Attempting reconnection ${attempts + 1} for ${phoneNumber}`);
+                        const newBot = await Utils.retry(
+                            () => createWhatsAppBot(phoneNumber, sendPairingCode, updateStatus, whatsAppBots),
+                            2, // 2 retries for each reconnection attempt
+                            1000 // 1 second base delay
+                        );
+                        
                         if (newBot) {
                             whatsAppBots.set(phoneNumber, newBot);
                             reconnectionAttempts.delete(phoneNumber); // Reset on successful connection
                             logger.success(`Successfully reconnected bot for ${phoneNumber}`);
+                        } else {
+                            throw new Error('Failed to create bot instance');
                         }
                     } catch (error) {
                         logger.error(`Failed to reconnect bot for ${phoneNumber}:`, error);
+                        healthMonitor.recordError(error);
+                        
+                        // If this was the last attempt, clean up
+                        if (attempts + 1 >= DEFAULT_CONFIG.MAX_RECONNECT_ATTEMPTS) {
+                            logger.error(`All reconnection attempts failed for ${phoneNumber}. Cleaning up.`);
+                            deleteSession(phoneNumber);
+                            whatsAppBots.delete(phoneNumber);
+                            reconnectionAttempts.delete(phoneNumber);
+                        }
                     }
                 }, delay);
             } else {

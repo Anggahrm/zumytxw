@@ -7,3 +7,7 @@ package-lock.json
 tmp
 .DS_Store
 .vscode/settings.json
+
+# Test and temporary files
+test-improvements.js
+validate-syntax.js

@@ -1,5 +1,6 @@
 import config from '../config.js';
 import { logger } from '../lib/logger.js';
+import { Validator } from '../lib/utils.js';
 
 /**
  * Validate application configuration
@@ -44,6 +45,30 @@ export function validateConfig() {
             warnings.push(`WhatsApp owner number ${index + 1} may be invalid: ${number}`);
         }
     });
+
+    // Validate Telegram owner ID format
+    if (!Validator.isValidUserId(config.telegram.ownerId)) {
+        errors.push('TELEGRAM_OWNER_ID must be a valid positive integer');
+    }
+
+    // Security validation for API keys
+    if (config.apiKeys.betabotz && config.apiKeys.betabotz.length < 10) {
+        warnings.push('BETABOTZ_API_KEY appears to be too short');
+    }
+
+    // Validate environment
+    const validEnvironments = ['development', 'production', 'testing'];
+    if (!validEnvironments.includes(config.app.environment)) {
+        warnings.push(`Invalid environment: ${config.app.environment}. Using 'development' as fallback.`);
+        config.app.environment = 'development';
+    }
+
+    // Validate log level
+    const validLogLevels = ['error', 'warn', 'info', 'debug'];
+    if (!validLogLevels.includes(config.app.logLevel)) {
+        warnings.push(`Invalid log level: ${config.app.logLevel}. Using 'info' as fallback.`);
+        config.app.logLevel = 'info';
+    }
 
     return {
         success: errors.length === 0,

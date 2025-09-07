@@ -8,10 +8,12 @@ A sophisticated WhatsApp bot manager controlled via Telegram, built with Node.js
 - 🔐 **Role-based Access**: Different user roles with varying bot limits
 - 📱 **Pairing Code**: Easy bot setup with pairing codes instead of QR scanning
 - 🗄️ **Persistent Storage**: JSON-based database for user data and settings
-- 🛡️ **Security**: Input validation, rate limiting, and error handling
+- 🛡️ **Enhanced Security**: Advanced input validation, threat detection, and injection prevention
 - 🎨 **Rich Commands**: Sticker creation, TikTok downloader, store management
-- 🔄 **Auto-reconnect**: Automatic reconnection for WhatsApp bots
-- 📊 **Status Monitoring**: Real-time bot status tracking
+- 🔄 **Auto-reconnect**: Intelligent reconnection with exponential backoff and retry logic
+- 📊 **Health Monitoring**: Real-time system health tracking and performance metrics
+- 🚨 **Error Recovery**: Robust error handling with automatic recovery mechanisms
+- ⚡ **Performance**: Rate limiting, memory monitoring, and optimized processing
 
 ## 🚀 Quick Start
 
@@ -92,6 +94,7 @@ A sophisticated WhatsApp bot manager controlled via Telegram, built with Node.js
 ### Main Commands
 - `!menu` or `!help` - Show command menu
 - `!status` - Show bot status
+- `!health` - Show system health status (Admin only)
 
 ### Sticker Commands
 - `!sticker` or `!s` - Create sticker from image/video
@@ -165,11 +168,26 @@ The application uses JSON files for data persistence:
 
 ## 🛡️ Security Features
 
-- **Input Validation**: All user inputs are validated and sanitized
-- **Rate Limiting**: Prevents API abuse
+- **Advanced Input Validation**: All user inputs are validated and sanitized
+- **Threat Detection**: Real-time analysis for XSS, SQL injection, and other attacks
+- **Rate Limiting**: Prevents API abuse with intelligent rate limiting
 - **Error Handling**: Structured error handling with user-friendly messages
 - **Path Validation**: Prevents directory traversal attacks
 - **Environment Variables**: Sensitive data stored securely
+- **Content Analysis**: Spam detection and content validation
+- **Command Sanitization**: Safe command processing and validation
+
+## 📊 Health Monitoring
+
+The application includes comprehensive health monitoring:
+
+- **System Metrics**: Real-time tracking of uptime, memory usage, and performance
+- **Error Tracking**: Automatic error recording and analysis
+- **Request Monitoring**: Request counting and rate analysis
+- **Health Status**: Overall system health assessment
+- **Performance Insights**: Memory usage and error rate monitoring
+
+Use the `!health` command (admin only) to view system status.
 
 ## 🔄 Error Handling
 
@@ -195,6 +213,17 @@ Structured logging with different levels:
 3. Make your changes
 4. Add tests if applicable
 5. Submit a pull request
+
+## 📋 Recent Improvements
+
+For detailed information about recent improvements and enhancements, see [IMPROVEMENTS.md](IMPROVEMENTS.md).
+
+Major improvements include:
+- Enhanced security and validation systems
+- Health monitoring and performance tracking
+- Improved error recovery mechanisms
+- Better configuration validation
+- Advanced threat detection capabilities
 
 ## 📄 License
 
